@@ -1,11 +1,19 @@
 #!/bin/bash
 
-function displayHelp(){
-	cat <<-END
-piHole Unlblocker - Version 2.3
-===============================
+_script_version="2.4"
+_script_location="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 
-usage: sudo unblock.sh [options] <domain1> [<domain2> <domain3> ...]
+function display_version(){
+    echo "piHole Unlblocker - Version $_script_version"
+}
+
+function display_help(){
+	cat <<-END
+
+usage:
+sudo unblock.sh [options] <domain1> [<domain2> <domain3> ...]
+unblock.sh --install
+unblock.sh --update
 
 
 Options:
@@ -21,9 +29,6 @@ Only list affected domains without adding them to the whitelist
 Supresses all output except for affected domains. (For piping Output)
 Activates -p | --probe
 
--u | --update
-Download the latest version of this script from pastebin
-
 -y | --yes
 Adds the found subdomains to whitelist without confirmation.
 No effect when used with -p | --probe
@@ -38,6 +43,15 @@ Adds all lines within file.txt to the internal blacklist of this tool.
 -b "<some words to block>" | --blacklist "<some words to block>"
 Adds these words to the blacklist of this tool.
 Can be used in conjunction with -f to expand the blacklist temporarily.
+
+--install
+Creates an alias for the script at its current location
+
+-u | --update
+Download the latest version of this script from GitHub
+
+-V | --version
+Show the version-number of this Script
 
 
 What the program does:
@@ -68,8 +82,51 @@ Further words to blacklist can be provided with the -f | --file option, the -b |
 or a combination of both options.
 If -v is used, blacklists filtered out this way will be declared as such.
 
+
+Why sudo?
+---------
 This program needs sudo mainly to gain read-access on the folder containing the blocklists.
+As new blocklists could have been installed with default permissions (owner root, chmod 640)
+between the installation of this script and some use later, simply chmod-ing the existing
+list files once on install won't do.
+
+
+Installation
+------------
+
+For ease of use, it is recommended to append the following lines to your .bash_aliases file:
+    alias probe='sudo $_script_location/unblock.sh -p -f $_script_location/blacklist.txt'
+    alias unblock='sudo $_script_location/unblock.sh -f $_script_location/blacklist.txt'
+This can also be achieved by running this script with the --install option.
+
 END
+}
+
+function install(){
+    alias_file="$HOME/.bash_aliases"
+    bashrc_file="$HOME/.bashrc"
+    
+    # Creating Alias file
+    if [ ! -f "$alias_file" ]; then
+        echo "Could not find alias file, creating it now"
+        touch "$alias_file"
+    fi
+    
+    # Adding 'probe'
+    if [ $(cat "$alias_file" | grep -c "alias probe=") -gt 0 ]; then
+        echo "Alias 'probe' already exists, skipping"
+    else
+        echo "Creating 'probe' Alias"
+        echo "alias probe='sudo $_script_location/unblock.sh -p -f $_script_location/blacklist.txt'" >> "$alias_file"
+    fi
+    
+    # Adding 'unblock'
+    if [ $(cat "$alias_file" | grep -c "alias unblock=") -gt 0 ]; then
+        echo "Alias 'unblock' already exists, skipping"
+    else
+        echo "Creating 'unblock' Alias"
+        echo "alias unblock='sudo $_script_location/unblock.sh -f $_script_location/blacklist.txt'" >> "$alias_file"
+    fi
 }
 
 function update(){
@@ -113,10 +170,9 @@ function update(){
                 
                 if [[ -f "$this_script" ]]; then
                     echo "Update successful"
-                    sudo chmod a+x "$this_script"
-                    sudo chown pi "$this_script"
+                    chmod a+x "$this_script"
                     if type "dos2unix" > /dev/null; then
-                        sudo dos2unix "$this_script"
+                        dos2unix "$this_script"
                     fi
                 else
                     echo "Update failed, restoring backup"
@@ -141,6 +197,14 @@ function update(){
     fi
 }
 
+function check_root(){
+    if [[ $# -eq 0 ]]; then
+        echo "Please use one or more domains as arguments for this script:"
+        echo "./"`basename "$0"`" example.com foo.org"
+        exit 1
+    fi
+}
+
 pihole_path="/etc/pihole"
 pihole_list="list.*"
 
@@ -154,17 +218,6 @@ cliPROBE=0
 cliBLACKLIST=""
 cliVERBOSE=0
 cliYES=0
-
-if [[ $EUID -ne 0 ]]; then
-    echo "This script must be run as root" 1>&2
-    exit 1
-fi
-
-if [[ $# -eq 0 ]]; then
-    echo "Please use one or more domains as arguments for this script:"
-    echo "./"`basename "$0"`" example.com foo.org"
-    exit 1
-fi
 
 while [[ $# > 0 ]]
 do
@@ -184,10 +237,6 @@ do
             ;;
             -v|--verbose)
                 cliVERBOSE=1
-            ;;
-            -h|--help)
-                displayHelp
-                exit
             ;;
             -y|--yes)
                 cliYES=1
@@ -212,22 +261,40 @@ do
                 fi
                 shift
             ;;
+            --install)
+                install
+                exit
+            ;;
             -u|--update)
                 update
                 exit
             ;;
+            -V|--version)
+                display_version
+                exit
+            ;;
+            -h|--help)
+                display_version
+                echo "========================================"
+                display_help
+                exit
+            ;;
             *)
+                # We have found a argument that is not a known option, thus it must be a domain and we can begin the unblocking
                 cliNOPARAMS=1
             ;;
         esac
     fi
     
+    # The unblocking begins here, after all known options have been processed
     if [ $cliNOPARAMS -eq 1 ]; then
+        
+        check_root
         
         # Change the working directory
         if [ "$(pwd)" != "$pihole_path" ]; then
             if [ $cliLIST -ne 1 ]; then
-                echo "Wechsel in Ordner $pihole_path"
+                echo "Changing into folder $pihole_path"
             fi
             cd $pihole_path
             sudo chmod o+rw $pihole_list
@@ -249,7 +316,31 @@ do
             echo "Looking for subdomains of $domain in blocklists"
         fi
         
-        for subdomain in $(grep --include list.\* -r -E -h "^([0-9a-z\-\_]+\.)*\b$domain(\.[a-z]{2,8})?$" | awk '!seen[$0]++' | sort -u); do
+        # grep --include list.\*
+        #   Read all the content from all files starting with "list."
+        #
+        # -r
+        #   Do so recursively (in case later updates store lists in subfolders)
+        #
+        # -h
+        #   Supress the filenames while reading files
+        #
+        # -E "^([0-9a-z\-\_]+\.)*\b$domain(\.[a-z]{2,8})?$"
+        #   Filter for lines where this regular expression applies:
+        #       ^:                  Marks the beginning of the line. Used to avoid false-positives
+        #       ([0-9a-z\-\_]+\.)*: Any number of subdomains terminated with a period prepending the domain
+        #       \b$domain:          The domain to be unblocked. "$domain" will be expanded before the regex is applied
+        #       (\.[a-z]{2,8}):     A period, followed by the top-level-domain (tld), which is 2 to 8 characters long
+        #       ?:                  Makes the tld optional in case the user has already submitted a tld in $domain
+        #       $:                  Marks the end of the line. Used to avoid false-positives
+        #
+        # | awk '!seen[$0]++'
+        #   Filters the found subdomains for uniqueness, so we don't unblock the same subdomain multiple times if it is in multiple lists
+        #
+        # | sort -u
+        #   Sort found subdomains alphabetically (both for aesthetics and convenience)
+        
+        for subdomain in $(grep --include list.\* -r -h -E "^([0-9a-z\-\_]+\.)*\b$domain(\.[a-z]{2,8})?$" | awk '!seen[$0]++' | sort -u); do
             if [ $(echo $subdomain | grep -cE "$filterRegex") -ne 0 ]; then
                 if [ $cliLIST -ne 1 ]; then
                     if [ $cliVERBOSE -eq 1 ]; then
@@ -271,6 +362,7 @@ do
             if [ $cliYES -eq 1 ]; then
                 addToWhitelist=1
             else
+                # This loop promts for an answer that is either y, yes, n or no
                 answerValid=0
                 while [[ $answerValid -ne 1 ]]; do
                     read -p "Add these domains to whitelist (y/n)?" choice

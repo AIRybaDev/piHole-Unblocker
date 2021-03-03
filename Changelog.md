@@ -1,9 +1,17 @@
 # Changelog
 
+## 2021-03-03 - Version 2.4
+
+* Added installer
+* Removed the need for sudo on updating
+* Documented the process for finding subdomains
+* Added `--version` option
+* Added `README.md`
+
 ## 2021-02-28 - Version 2.3
 
 * Made Repository public
-* Added Changelog.md to the Project
+* Added `Changelog.md` to the Project
 * Changed the location of the remote File for updating to this GitHub Repo
 * Changed code comments from german to english
 * List-Mode automatically enables probe-only to avoid unnecessary input-prompts
