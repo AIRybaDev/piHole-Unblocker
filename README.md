@@ -52,7 +52,7 @@ git clone https://github.com/AIRybaDev/piHole-Unblocker unblocker
 cd unblocker
 ./unblock.sh --install
 ```   
-#### Updating:   
+### Updating:   
  `./unblock.sh --update`  
 ### Unblocking: 
 `sudo ./unblock.sh [options] <domain1> [<domain2> <domain3> ...]`

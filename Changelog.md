@@ -1,5 +1,8 @@
 # Changelog
 
+## 2021-03-13 - Version 2.4.1
+* Bugfix: check_root function did in fct NOT check for root permissions
+
 ## 2021-03-03 - Version 2.4
 
 * Added installer

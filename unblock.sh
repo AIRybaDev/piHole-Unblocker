@@ -1,6 +1,6 @@
 #!/bin/bash
 
-_script_version="2.4"
+_script_version="2.4.1"
 _script_location="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 
 function display_version(){
@@ -198,9 +198,8 @@ function update(){
 }
 
 function check_root(){
-    if [[ $# -eq 0 ]]; then
-        echo "Please use one or more domains as arguments for this script:"
-        echo "./"`basename "$0"`" example.com foo.org"
+    if [[ $EUID -ne 0 ]]; then
+        echo "This script must be run as root" 1>&2
         exit 1
     fi
 }
@@ -218,6 +217,13 @@ cliPROBE=0
 cliBLACKLIST=""
 cliVERBOSE=0
 cliYES=0
+
+# Check if this script is being run with any arguments at all
+if [[ $# -eq 0 ]]; then
+    echo "Please use one or more domains as arguments for this script:"
+    echo "./"`basename "$0"`" example.com foo.org"
+    exit 1
+fi
 
 while [[ $# > 0 ]]
 do
@@ -289,6 +295,7 @@ do
     # The unblocking begins here, after all known options have been processed
     if [ $cliNOPARAMS -eq 1 ]; then
         
+        # Check for root permission
         check_root
         
         # Change the working directory
